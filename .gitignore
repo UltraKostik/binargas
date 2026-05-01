@@ -1,0 +1,10 @@
+.env
+bot.log
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
