@@ -6,11 +6,12 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
+from aiogram.exceptions import MessageNotModified
 import keyboards as kb
 from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 load_dotenv()
-MODERATOR_ID = os.getenv("MODERATOR_ID")
+MODERATOR_ID = int(os.getenv("MODERATOR_ID"))
 router = Router()
 class UserStates(StatesGroup):
     contact_name = State()
@@ -20,7 +21,6 @@ class Moderator(StatesGroup):
 @router.callback_query(F.data == "back_main")
 @router.message(F.text == "/start")
 async def start_handler(update: Message | CallbackQuery):
-    try:
         welcome_text = (
             "Добро пожаловать в официальный бот компании «БИНАР»! 🛡️\n\n"
             "Мы производим российские газоанализаторы для контроля горючих газов "
@@ -28,21 +28,10 @@ async def start_handler(update: Message | CallbackQuery):
             "<b>Какая информация вас интересует? ⬇️</b>"
         )
         if isinstance(update, CallbackQuery):
-            await update.message.answer(
-                welcome_text,
-                reply_markup=kb.main_keyboard,
-                parse_mode="HTML"
-            )
+            await update.message.answer(welcome_text, reply_markup=kb.main_keyboard, parse_mode="HTML")
             await update.answer()
         else:
-            await update.answer(
-                welcome_text,
-                reply_markup=kb.main_keyboard,
-                parse_mode="HTML"
-            )
-    except Exception as e:
-        await update.answer("⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
-        logger.error(f"[{ctime()}]. Ошибка в start_handler: {type(e).__name__}: {e}")     
+            await update.answer(welcome_text, reply_markup=kb.main_keyboard, parse_mode="HTML")   
 @router.callback_query(F.data == "manual")
 async def manual_handler(callback: CallbackQuery):
     try:
@@ -51,6 +40,8 @@ async def manual_handler(callback: CallbackQuery):
             "Какой Бинар вас интересует?",
             reply_markup=kb.models_keyboard
         )
+        await callback.answer()
+    except MessageNotModified:
         await callback.answer()
     except Exception as e:
         await callback.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
@@ -67,12 +58,13 @@ async def contact_handler(callback: CallbackQuery, state: FSMContext):
             parse_mode="HTML"
         )
         await callback.answer()
+    except MessageNotModified:
+        await callback.answer()
     except Exception as e:
         await callback.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
         logger.error(f"[{ctime()}]. Ошибка в contact_handler: {type(e).__name__}: {e}")      
 @router.message(F.text, UserStates.contact_name)
 async def get_name_handler(message: Message, state: FSMContext):
-    try:
         name = message.text.strip()
         if not name:
             await message.answer("❌ Пожалуйста, введите ваше имя.")
@@ -91,9 +83,6 @@ async def get_name_handler(message: Message, state: FSMContext):
         f"<i>Опишите что вас интересует, задайте вопрос или оставьте комментарий</i>",
         parse_mode="HTML"
         )
-    except Exception as e:
-        await message.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
-        logger.error(f"[{ctime()}]. Ошибка в get_name_handler: {type(e).__name__}: {e}")
 @router.message(F.text, UserStates.contact_info)
 async def get_info_handler(message: Message, state: FSMContext):
     try:
@@ -126,11 +115,12 @@ async def get_info_handler(message: Message, state: FSMContext):
         )
         logger.info(f"[{ctime()}] Заявка отправлена модератору ID: {MODERATOR_ID}")
     except Exception as e:
-        await message.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
+        await message.answer(f"⚠️ Не удалось отправить заявку модератору. Пожалуйста, попробуйте позже.")
         logger.error(f"[{ctime()}]. Ошибка в get_info_handler: {type(e).__name__}: {e}")
+    finally:
+        await state.clear()
 @router.callback_query(F.data == "send_message_moderator")
 async def send_message_handler(callback: CallbackQuery, state: FSMContext):
-    try:
         message_text = callback.message.text
         match = re.search(r'• ID:\s*(\d+)', message_text)
         if match:
@@ -143,20 +133,15 @@ async def send_message_handler(callback: CallbackQuery, state: FSMContext):
         else:
             await callback.answer("❌ Не найден ID пользователя в сообщении")
             return
-        await callback.answer()
-    except Exception as e:
-        await callback.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
-        logger.error(f"[{ctime()}]. Ошибка в send_message_handler: {type(e).__name__}: {e}")
 @router.message(Moderator.wait)
 async def moderator_reply_handler(message: Message, state: FSMContext):
     try:
         if message.chat.id != MODERATOR_ID:
-            return 
+            return
         data = await state.get_data()
         user_id = data.get("reply_user_id")
         if not user_id:
             await message.answer("❌ Ошибка: не найден ID пользователя")
-            await state.clear()
             return
         await message.bot.send_message(
             chat_id=user_id,
@@ -164,7 +149,8 @@ async def moderator_reply_handler(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
         await message.answer(f"✅ Ответ отправлен пользователю ID: {user_id}")
-        await state.clear()
     except Exception as e:
-        await message.answer(f"⚠️ Произошла ошибка. Пожалуйста, попробуйте позже.")
+        await message.answer(f"⚠️ Не удалось отправить ответ пользователю. Возможно, он заблокировал бота. Пожалуйста, попробуйте позже.")
         logger.error(f"[{ctime()}]. Ошибка в moderator_reply_handler: {type(e).__name__}: {e}")
+    finally:
+        await state.clear()
