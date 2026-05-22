@@ -11,7 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 from aiogram.exceptions import MessageNotModified
 
-from config import MODERATOR_ID
+from config import get_moderator_id
 import keyboards as kb
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ async def get_info_handler(message: Message, state: FSMContext) -> None:
         user = message.from_user
         
         await message.bot.send_message(
-            chat_id = MODERATOR_ID,
+            chat_id = get_moderator_id(),
             text=
             f"📨 <b>НОВАЯ ЗАЯВКА ОТ {'@' + user.username if user.username else f'<a href=\"tg://user?id={user.id}\">Пользователь</a>'}</b>\n\n"
             f"• ID: <code>{user.id}</code>\n"
@@ -166,7 +166,7 @@ async def send_message_handler(callback: CallbackQuery, state: FSMContext) -> No
 @router.message(Moderator.wait)
 async def moderator_reply_handler(message: Message, state: FSMContext) -> None:
     try:
-        if message.chat.id != MODERATOR_ID:
+        if message.chat.id != get_moderator_id():
             return
         
         data = await state.get_data()
