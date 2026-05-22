@@ -1,9 +1,37 @@
 #Telegram бот БинарГаз. Разработчик @UltraKostik
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 FILES_DIR = BASE_DIR / "files"
+
+
+def get_bot_token() -> str:
+    token = os.getenv("BOT_TOKEN")
+
+    if not token:
+        raise ValueError("BOT_TOKEN отсутствует в .env файле!")
+
+    return token
+
+
+def get_moderator_id() -> int:
+    moderator_id = os.getenv("MODERATOR_ID")
+
+    if not moderator_id:
+        raise ValueError("MODERATOR_ID отсутствует в .env файле!")
+
+    try:
+        return int(moderator_id)
+    except ValueError:
+        raise ValueError("MODERATOR_ID должен быть числом")
+
+
 
 FILES_CONFIG = {
     "model_3х": {
