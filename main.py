@@ -2,15 +2,15 @@
 
 import asyncio
 import logging
-import os
 import sys
-
-import handlers as hd
-import file_handlers as fhd
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import ErrorEvent
-from dotenv import load_dotenv
+
+from config import get_bot_token, get_moderator_id
+
+import file_handlers as fhd
+import handlers as hd
 
 
 def setup_logging() -> None:
@@ -30,25 +30,18 @@ def setup_logging() -> None:
 logger = logging.getLogger(__name__)
 
 
-def load_config() -> str:
-    load_dotenv()
-    token = os.getenv("BOT_TOKEN")
-    moderator_id = os.getenv("MODERATOR_ID")
-
-    if not token:
-        raise ValueError("BOT_TOKEN отсутствует в .env файле!")
-    if not moderator_id:
-        raise ValueError("MODERATOR_ID отсутствует в .env файле!")
-
-    return token
-
-
 async def main() -> None:
     setup_logging()
     logger.info("Запуск бота")
 
-    token = load_config()
-    bot: Bot = Bot(token=token)
+    try:
+        bot_token = get_bot_token()
+        moderator_id = get_moderator_id()
+    except ValueError as e:
+        logger.exception(f"Критическая ошибка при инициализации переменных окружения: {e}")
+        return
+
+    bot: Bot = Bot(token=bot_token)
     dp: Dispatcher = Dispatcher()
 
     dp.include_router(hd.router)
@@ -57,10 +50,12 @@ async def main() -> None:
     @dp.errors()
     async def handle_errors(event: ErrorEvent) -> bool:
         logger.exception(f"Ошибка в обработчике: {event.exception}")
+
         if event.update.callback_query:
             await event.update.callback_query.answer("❌ Ошибка. Попробуйте позже.")
         elif event.update.message:
             await event.update.message.answer("❌ Ошибка. Попробуйте позже.")
+
         return True
 
     logger.info("Бот успешно инициализирован!")
@@ -74,6 +69,7 @@ async def main() -> None:
         if bot:
             await bot.session.close()
             logger.info("Сессия бота закрыта")
+
     logger.info("Бот завершил работу")
 
 
